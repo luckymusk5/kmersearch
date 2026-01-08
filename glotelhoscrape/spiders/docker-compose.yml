@@ -1,0 +1,59 @@
+services:
+  frontend:
+    build: ./frontend/vite-project
+    ports:
+      - "3000:3000"
+    restart: on-failure:0
+    environment:
+      REACT_APP_BACKEND_URL: http://backend:5000
+    depends_on:
+      - backend
+    networks:
+      - app_net
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    restart: on-failure:0
+    environment:
+      WEAVIATE_HOST: weaviate
+      WEAVIATE_PORT: '8080'
+      FRONTEND_HOST: frontend
+      FRONTEND_PORT: '3000'
+    depends_on:
+      - weaviate
+    networks:
+      - app_net
+
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --scheme
+      - http
+    image: semitechnologies/weaviate:1.27.0
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      ENABLE_MODULES: text2vec-voyageai
+      VOYAGEAI_API_KEY: ${VOYAGEAI}
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      CLUSTER_HOSTNAME: node1
+    networks:
+      - app_net
+
+volumes:
+  weaviate_data:
+
+networks:
+  app_net:
+    driver: bridge
