@@ -51,14 +51,7 @@
   width: 100%;
   background-image: url("gr.jpg");
 }
-.background {
-  position: relative;
-  width: 100%;
-  min-height: 100vh;
-  background-image: url("31189.jpg");
-  background-size: cover;
-  background-position: center;
-}
+
 
 /* =====================
    Overlay dynamique
