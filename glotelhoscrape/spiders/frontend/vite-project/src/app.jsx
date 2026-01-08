@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useState, useEffect } from "react";
-import "./App.css";
+import "./app.css";
 import Logo1 from "./logo.png";
 
 export default function App() {
