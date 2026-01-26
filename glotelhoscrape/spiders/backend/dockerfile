@@ -1,20 +1,22 @@
-# Étape 1 : Choisir une image Python légère
+# Image Python légère
 FROM python:3.11-slim
 
-# Étape 2 : Créer un dossier de travail
+# Variables d’environnement propres
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Dossier de travail
 WORKDIR /app
 
-# Étape 3 : Copier les fichiers de dépendances
+# Dépendances
 COPY requirements.txt .
-
-# Étape 4 : Installer les dépendances
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Étape 5 : Copier le reste du code source
+# Code source
 COPY . .
 
-# Étape 6 : Exposer le port Flask
-EXPOSE 5000
+# Pas d’EXPOSE inutile, Traffic gère le réseau
 
-# Étape 7 : Démarrer l'application Flask
+# Lancement du backend
 CMD ["python", "kmersearchback.py"]
+

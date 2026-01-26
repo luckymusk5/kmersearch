@@ -1,43 +1,56 @@
+version: "3.8"
+
 services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"      # HTTP
+      - "8080:8080"  # Dashboard Traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - app_net
+
   frontend:
     build: ./frontend/vite-project
-    ports:
-      - "3000:3000"
     restart: on-failure:0
-    environment:
-      REACT_APP_BACKEND_URL: http://backend:5000
     depends_on:
       - backend
     networks:
       - app_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`frontend.localhost`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
   backend:
     build: ./backend
-    ports:
-      - "5000:5000"
     restart: on-failure:0
     environment:
       WEAVIATE_HOST: weaviate
-      WEAVIATE_PORT: '8080'
-      FRONTEND_HOST: frontend
-      FRONTEND_PORT: '3000'
+      WEAVIATE_PORT: "8080"
     depends_on:
       - weaviate
     networks:
       - app_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`backend.localhost`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=5000"
 
   weaviate:
+    image: semitechnologies/weaviate:1.27.0
     command:
       - --host
       - 0.0.0.0
       - --port
-      - '8080'
+      - "8080"
       - --scheme
       - http
-    image: semitechnologies/weaviate:1.27.0
-    ports:
-      - "8080:8080"
-      - "50051:50051"
     volumes:
       - weaviate_data:/var/lib/weaviate
     restart: on-failure:0
@@ -45,11 +58,15 @@ services:
       ENABLE_MODULES: text2vec-voyageai
       VOYAGEAI_API_KEY: ${VOYAGEAI}
       QUERY_DEFAULTS_LIMIT: 25
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
       PERSISTENCE_DATA_PATH: /var/lib/weaviate
       CLUSTER_HOSTNAME: node1
     networks:
       - app_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.weaviate.rule=Host(`weaviate.localhost`)"
+      - "traefik.http.services.weaviate.loadbalancer.server.port=8080"
 
 volumes:
   weaviate_data:

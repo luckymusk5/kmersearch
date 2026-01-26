@@ -1,165 +1,292 @@
-// src/App.jsx
-import { useState, useEffect } from "react";
-import "./app.css";
-import Logo1 from "./logo.png";
+import React, { useState, useEffect, useRef } from 'react';
+import './App.css';
 
-export default function App() {
-  const [q, setQ] = useState("");
+const App = () => {
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [scrollDarkness, setScrollDarkness] = useState(0);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [imageErrors, setImageErrors] = useState({});
+  const inputRef = useRef(null);
 
-  // Scroll = ambiance (overlay + blur)
+  // Focus sur l'input au chargement
   useEffect(() => {
-  const handleScroll = () => {
-    const centre = document.querySelector(".centre");
-    if (!centre) return;
-
-    const centreBottom = centre.offsetTop + centre.offsetHeight;
-    const scrollY = window.scrollY;
-
-    // Tant qu’on est au-dessus des résultats → clair
-    if (scrollY < centreBottom - 100) {
-      setScrollDarkness(0);
-      document.documentElement.style.setProperty("--blur", 0);
-      return;
+    if (inputRef.current && !hasSearched) {
+      inputRef.current.focus();
     }
+  }, [hasSearched]);
 
-    // Assombrissement progressif APRÈS la zone search
-    const delta = scrollY - centreBottom;
-    const maxScroll = 400;
-
-    const darkness = Math.min(delta / maxScroll, 0.4);
-    const blur = Math.min(delta / 40, 12);
-
-    setScrollDarkness(darkness);
-    document.documentElement.style.setProperty("--blur", blur);
+  // Fonction pour obtenir l'URL de l'image via le proxy Flask
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    return `http://localhost:5000/image?url=${encodeURIComponent(imageUrl)}`;
   };
 
-  window.addEventListener("scroll", handleScroll);
-  return () => window.removeEventListener("scroll", handleScroll);
-}, []);
+  const handleSearch = async (e) => {
+    e?.preventDefault();
+    if (!query.trim()) return;
 
-
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    if (!q.trim()) return;
-
-    setError(null);
     setLoading(true);
-    setResults([]);
+    setHasSearched(true);
+    setImageErrors({});
 
     try {
-      const res = await fetch(
-        `http://127.0.0.1:5000/search?query=${encodeURIComponent(q)}`
-      );
-      if (!res.ok) throw new Error(`Erreur serveur ${res.status}`);
-      const data = await res.json();
-      setResults(data.results || []);
-    } catch (err) {
-      setError("Erreur lors de la récupération des produits.");
+      const response = await fetch(`http://localhost:5000/search?query=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      
+      // Traiter les résultats pour s'assurer qu'on a les images
+      const processedResults = data.results?.map(product => ({
+        ...product,
+        // S'assurer que 'images' est un tableau
+        images: Array.isArray(product.images) ? product.images : [product.images].filter(Boolean)
+      })) || [];
+      
+      setResults(processedResults);
+    } catch (error) {
+      console.error('Erreur:', error);
+      setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const hasResults = results.length > 0;
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch(e);
+    }
+    if (e.key === 'Escape' && query) {
+      setQuery('');
+    }
+  };
+
+  const resetSearch = () => {
+    setQuery('');
+    setResults([]);
+    setHasSearched(false);
+    setImageErrors({});
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  const handleImageError = (index) => {
+    setImageErrors(prev => ({
+      ...prev,
+      [index]: true
+    }));
+  };
 
   return (
-    <div className="page">
-      <main className={`main ${hasResults ? "searched" : ""}`}>
-        
-        
-      <div className="background1">
-          <div className="content">
-            <div className="centre">
-              <img src={Logo1} className="logo-img" alt="Logo" />
-
-              <div className="logo">KMERSEARCH</div>
-
-              <form className="search" onSubmit={onSubmit}>
-                <div className="searchbox">
-                  <input
-                    type="text"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search on KmerSearch"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="actions">
-                  <button type="submit" className="btn">
-                    Research products
+    <div className="app">
+      {/* Header fixe en haut */}
+      <header className={`header ${hasSearched ? 'compact' : ''}`}>
+        <div className="header-content">
+          <div className="logo" onClick={resetSearch}>
+            <span className="logo-letter">KMERSEARCH</span>
+            {!hasSearched && <span className="logo-text">Search</span>}
+          </div>
+          
+          {hasSearched && (
+            <div className="search-bar">
+              <div className="search-input-wrapper">
+                <div className="search-icon">🔍</div>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Rechercher des produits..."
+                  className="search-input"
+                />
+                {query && (
+                  <button 
+                    type="button" 
+                    onClick={() => setQuery('')}
+                    className="clear-btn"
+                  >
+                    ✕
                   </button>
-                </div>
-              </form>
+                )}
+              </div>
+            </div>
+          )}
+
+          {hasSearched && (
+            <div className="header-actions">
+              <button onClick={handleSearch} className="search-action-btn">
+                Rechercher
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Contenu principal */}
+      <main className={`main-content ${hasSearched ? 'with-results' : 'centered'}`}>
+        {!hasSearched ? (
+          // Vue initiale - plein écran
+          <div className="hero-section">
+            <div className="hero-logo">
+              <div className="hero-logo-letter">KMERSEARCH</div>
+              <div className="hero-logo-text">Search</div>
+            </div>
+            
+            <form className="hero-search" onSubmit={handleSearch}>
+              <div className="hero-input-wrapper">
+                <div className="hero-search-icon">🔍</div>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Rechercher des produits..."
+                  className="hero-search-input"
+                />
+                {query && (
+                  <button 
+                    type="button" 
+                    onClick={() => setQuery('')}
+                    className="hero-clear-btn"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              
+              <div className="hero-actions">
+                <button type="submit" className="hero-search-btn">
+                  Recherche sur KMERSEARCH
+                </button>
+              </div>
+            </form>
+
+            <div className="hero-hint">
+              Appuyez sur Entrée pour rechercher • Esc pour effacer
             </div>
           </div>
-             <div className="background">
-          <div
-            className="overlay"
-            style={{
-              background: `linear-gradient(
-                rgba(255,255,255,0.75) 0%,
-                rgba(0,0,0,${scrollDarkness}) 100%
-              )`,
-            }}
-          />
-            {loading && <p className="loading">Recherche en cours…</p>}
-            {error && <p className="error">{error}</p>}
-
-            {hasResults && (
-              <section className="results">
-                <h2>Produits trouvés</h2>
-
-                {results.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="result-card"
-                    style={{ "--i": idx }}
-                  >
-                    {item.image ? (
-                      <div className="result-image">
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          className="result-image-img"
-                        />
+        ) : (
+          // Vue résultats - plein écran
+          <div className="results-section">
+            {loading ? (
+              <div className="loading-full">
+                <div className="spinner-large"></div>
+                <div className="loading-text">Recherche en cours...</div>
+              </div>
+            ) : results.length > 0 ? (
+              <>
+                <div className="results-stats">
+                  {results.length} résultat{results.length > 1 ? 's' : ''} pour "{query}"
+                </div>
+                
+                <div className="results-grid">
+                  {results.map((product, index) => {
+                    const hasImages = product.images && product.images.length > 0;
+                    const firstImageUrl = hasImages ? product.images[0] : null;
+                    const imageFailed = imageErrors[index];
+                    
+                    return (
+                      <div key={index} className="product-card">
+                        {/* Section image */}
+                        <div className="product-image-container">
+                          {hasImages && !imageFailed ? (
+                            <img
+                              src={getImageUrl(firstImageUrl)}
+                              alt={product.title || 'Produit'}
+                              className="product-image"
+                              loading="lazy"
+                              onError={() => handleImageError(index)}
+                              onLoad={(e) => {
+                                // Optionnel: gérer le chargement réussi
+                                e.target.style.opacity = '1';
+                              }}
+                            />
+                          ) : (
+                            <div className="product-image-placeholder">
+                              <div className="placeholder-icon">📦</div>
+                              <div className="placeholder-text">Pas d'image</div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Contenu du produit */}
+                        <div className="product-content">
+                          <div className="product-header">
+                            <div className="product-source">
+                              {product.url?.replace('https://', '').split('/')[0] || 'glotelho.com'}
+                            </div>
+                            {product.price && (
+                              <div className="product-price">
+                                {product.price} FCFA
+                              </div>
+                            )}
+                          </div>
+                          
+                          <a 
+                            href={product.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="product-title"
+                          >
+                            {product.title || 'Produit sans nom'}
+                          </a>
+                          
+                          <div className="product-description">
+                            {product.description || 'Aucune description disponible'}
+                          </div>
+                          
+                          <div className="product-footer">
+                            <span className="tech-badge">KMERSEARCH</span>
+                            <button 
+                              onClick={() => window.open(product.url, '_blank')}
+                              className="view-btn"
+                            >
+                              Voir →
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="placeholder-image">📦</div>
-                    )}
-
-                    <div className="result-info">
-                      <h3 className="result-title">{item.title}</h3>
-                      <p className="result-description">{item.text}</p>
-
-                      {item.price !== undefined && (
-                        <p className="result-price">
-                          {item.price} FCFA
-                        </p>
-                      )}
-
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="result-link"
-                        >
-                          Voir le produit
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </section>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">🔍</div>
+                <div className="empty-title">
+                  Aucun résultat pour "{query}"
+                </div>
+                <div className="empty-subtitle">
+                  Essayez avec d'autres termes de recherche
+                </div>
+                <button 
+                  onClick={resetSearch}
+                  className="empty-action-btn"
+                >
+                  Nouvelle recherche
+                </button>
+              </div>
             )}
           </div>
-        </div>
+        )}
       </main>
+
+      {/* Footer minimal fixe en bas */}
+      <footer className={`footer ${hasSearched ? 'compact' : ''}`}>
+        <div className="footer-content">
+          <div className="footer-left">
+            <span>Cameroun</span>
+          </div>
+          <div className="footer-right">
+            <a href="#" className="footer-link">Confidentialité</a>
+            <a href="#" className="footer-link">Conditions</a>
+            <span className="footer-tech">Powered by KMERSEARCH</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
-}
+};
+
+export default App;
