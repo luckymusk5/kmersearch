@@ -7,43 +7,56 @@ services:
       - --api.insecure=true
       - --providers.docker=true
       - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.myresolver.acme.httpchallenge=true
+      - --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.myresolver.acme.email=emmanuelparfaitkamga@gmail.com
+      - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
     ports:
-      - "80:80"      # HTTP
-      - "8080:8080"  # Dashboard Traefik
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard Traefik
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./letsencrypt:/letsencrypt
     networks:
-      - app_net
+      - frontend_net
+      - backend_net
 
   frontend:
     build: ./frontend/vite-project
-    restart: on-failure:0
+    restart: on-failure
     depends_on:
       - backend
     networks:
-      - app_net
+      - frontend_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`frontend.localhost`)"
+      - "traefik.http.routers.frontend.rule=Host(`test.kmersearch.com`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
   backend:
     build: ./backend
-    restart: on-failure:0
+    restart: on-failure
     environment:
       WEAVIATE_HOST: weaviate
       WEAVIATE_PORT: "8080"
     depends_on:
       - weaviate
     networks:
-      - app_net
+      - frontend_net
+      - backend_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`backend.localhost`)"
+      - "traefik.http.routers.backend.rule=Host(`test-api.kmersearch.com`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=myresolver"
       - "traefik.http.services.backend.loadbalancer.server.port=5000"
 
   weaviate:
-    image: semitechnologies/weaviate:1.27.0
+    image: semitechnologies/weaviate:latest
     command:
       - --host
       - 0.0.0.0
@@ -53,7 +66,7 @@ services:
       - http
     volumes:
       - weaviate_data:/var/lib/weaviate
-    restart: on-failure:0
+    restart: on-failure
     environment:
       ENABLE_MODULES: text2vec-voyageai
       VOYAGEAI_API_KEY: ${VOYAGEAI}
@@ -62,15 +75,20 @@ services:
       PERSISTENCE_DATA_PATH: /var/lib/weaviate
       CLUSTER_HOSTNAME: node1
     networks:
-      - app_net
+      - backend_net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.weaviate.rule=Host(`weaviate.localhost`)"
+      - "traefik.http.routers.weaviate.rule=Host(`weaviate.test.kmersearch.com`)"
+      - "traefik.http.routers.weaviate.entrypoints=websecure"
+      - "traefik.http.routers.weaviate.tls.certresolver=myresolver"
       - "traefik.http.services.weaviate.loadbalancer.server.port=8080"
 
 volumes:
   weaviate_data:
+  letsencrypt:
 
 networks:
-  app_net:
+  frontend_net:
+    driver: bridge
+  backend_net:
     driver: bridge
