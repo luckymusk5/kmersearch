@@ -76,12 +76,7 @@ services:
       CLUSTER_HOSTNAME: node1
     networks:
       - backend_net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.weaviate.rule=Host(`weaviate.test.kmersearch.com`)"
-      - "traefik.http.routers.weaviate.entrypoints=websecure"
-      - "traefik.http.routers.weaviate.tls.certresolver=myresolver"
-      - "traefik.http.services.weaviate.loadbalancer.server.port=8080"
+      - frontend_net
 
 volumes:
   weaviate_data:
