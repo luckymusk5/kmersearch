@@ -11,23 +11,27 @@ app = Flask(__name__)
 CORS(app, origins=["https://test.kmersearch.com"])
 
 # Connexion à Weaviate via Docker network
-client = weaviate.connect_to_local(
-    host="weaviate",
-    port=8080,
+client = weaviate.connect_to_custom(
+    http_host="weaviate",
+    http_port=8080,
+    http_secure=False,
+    grpc_host="weaviate",
+    grpc_port="50051",
+    grpc_secure=False,
     headers={"X-VoyageAI-Api-Key": os.getenv("VOYAGEAI")}
 )
 
 # Connexion à Redis (ou Memurai si Windows)
 cache = redis.Redis(
-    host="redis",  # nom du service Redis dans Docker, si tu en as un
-    port=6379,
+    host=os.getenv("REDIS_HOST","redis"),  # nom du service Redis dans Docker, si tu en as un
+    port=int(os.getenv("REDIS_PORT","6379")),
     db=0,
     decode_responses=True
 )
 
 # Fonction de recherche vectorielle
 def vector_search(query: str):
-    collection = client.collections.get("Produit_glotelho")
+    collection = client.collections.get("Produtglotelho")
     response = collection.query.near_text(
         query=query,
         return_properties=["title", "description", "price", "images", "url"]
