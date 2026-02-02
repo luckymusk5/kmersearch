@@ -24,6 +24,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/kmersearch/glotelhoscrape/spiders
-            docker-compose pull
+            cd ~/kmersearch/glotelhoscrape
+            git pull origin master
+            cd ./spiders
+            docker-compose down
+            docker-compose build
             docker-compose up -d
