@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 import os
 import re
 import json
@@ -6,7 +7,7 @@ import weaviate
 from pathlib import Path
 from weaviate.classes.config import Configure, Property, DataType
 
-
+load_dotenv()
 def clean_html(text: str) -> str:
     """Nettoie le HTML et normalise les espaces."""
     if not text or text == "none":
@@ -16,7 +17,8 @@ def clean_html(text: str) -> str:
     return text if text else "none"
 
 client = weaviate.connect_to_local(
-    port=8080,
+    host="127.0.0.1",
+    port=8081,
     headers={"X-VoyageAI-Api-Key": os.getenv("VOYAGEAI")}
 )
 client.connect()
@@ -26,12 +28,12 @@ def ensure_product_collection():
     """Crée la collection Produit_glotelho si elle n'existe pas déjà."""
     existing_collections = client.collections.list_all()
 
-    if "Produit_glotelho" in existing_collections:
-        print("La collection Produit_glotelho existe déjà")
+    if "Produtglotelho" in existing_collections:
+        print("La collection Produtglotelho existe déjà")
         return
 
     client.collections.create(
-        name="Produit_glotelho",
+        name="Produtglotelho",
         properties=[
             Property(name="url", data_type=DataType.TEXT),
             Property(name="title", data_type=DataType.TEXT),
@@ -39,10 +41,11 @@ def ensure_product_collection():
             Property(name="description", data_type=DataType.TEXT),
             Property(name="images", data_type=DataType.TEXT_ARRAY),
         ],
-        vectorizer_config=Configure.Vectorizer.none()
+        vector_config=Configure.Vectors.text2vec_voyageai(name="default",
+        source_properties=["url","title","description","image"])
     )
 
-    print("Collection Produit_glotelho créée (vectorisation gérée par le serveur)")
+    print("Collection Produtglotelho créée (vectorisation gérée par le serveur)")
 
 
 def safe_price(value):
@@ -55,12 +58,12 @@ def safe_price(value):
         return 0.0
 
 
-def store_products(raw_products, batch_size=79):
+def store_products(raw_products, batch_size=30):
     """
     Ingestion des produits dans Weaviate en lots de 79 produits par minute.
     Si un lot échoue partiellement, les produits rejetés sont réinjectés au prochain tour.
     """
-    collection = client.collections.get("Produit_glotelho")
+    collection = client.collections.get("Produtglotelho")
 
     success_count = 0
     i = 0
@@ -111,11 +114,11 @@ if __name__ == "__main__":
     try:
         ensure_product_collection()
 
-        json_path = Path(r"C:\Users\HP ZBOOK 15 G4\glotelhoscrape\products.json")
+        json_path = Path(r"/root/kmersearch/products.json")
         with open(json_path, "r", encoding="utf-8") as f:
             raw_products = json.load(f)
 
-        store_products(raw_products, batch_size=79)
+        store_products(raw_products, batch_size=30)
         print("Import terminé avec succès.")
     finally:
         client.close()

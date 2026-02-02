@@ -19,7 +19,7 @@ const App = () => {
   // Fonction pour obtenir l'URL de l'image via le proxy Flask
   const getImageUrl = (imageUrl) => {
     if (!imageUrl) return null;
-    return `http://localhost:5000/image?url=${encodeURIComponent(imageUrl)}`;
+    return  `https://test-api.kmersearch.com/image?url=${encodeURIComponent(imageUrl)}`;
   };
 
   const handleSearch = async (e) => {
@@ -31,7 +31,7 @@ const App = () => {
     setImageErrors({});
 
     try {
-      const response = await fetch(`http://localhost:5000/search?query=${encodeURIComponent(query)}`);
+      const response = await fetch(`https://test-api.kmersearch.com/search?query=${encodeURIComponent(query)}`);
       const data = await response.json();
       
       // Traiter les résultats pour s'assurer qu'on a les images

@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.myresolver.acme.httpchallenge=true
+      - --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.myresolver.acme.email=emmanuelparfaitkamga@gmail.com
+      - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
+      - --accesslog=true
+      - --accesslog.format=json
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard Traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./letsencrypt:/letsencrypt
+    networks:
+      - frontend_net
+      - backend_net
+
+  frontend:
+    build: ./frontend/vite-project
+    restart: on-failure
+    depends_on:
+      - backend
+    networks:
+      - frontend_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`test.kmersearch.com`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  backend:
+    build: ./backend
+    restart: on-failure
+    environment:
+      WEAVIATE_HOST: weaviate
+      WEAVIATE_PORT: "8080"
+    depend_on:
+      - weaviate
+    env_file:
+      - .env
+    networks:
+      - frontend_net
+      - backend_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`test-api.kmersearch.com`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=myresolver"
+      - "traefik.http.services.backend.loadbalancer.server.port=5000"
+
+  weaviate:
+    image: semitechnologies/weaviate:latest
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --scheme
+      - http
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: on-failure
+    healthcheck:
+      test: ["CMD","wget","-qO-","http:/l:8080/v1/.well-known/ready"]
+      intervale: 5s
+      timeout: 10s
+      retries: 24 
+    environment:
+      ENABLE_MODULES: text2vec-voyageai
+      VOYAGEAI_API_KEY: ${VOYAGEAI}
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      CLUSTER_HOSTNAME: node1
+    networks:
+      - backend_net
+      - frontend_net
+
+volumes:
+  weaviate_data:
+  letsencrypt:
+
+networks:
+  frontend_net:
+    driver: bridge
+  backend_net:
+    driver: bridge
